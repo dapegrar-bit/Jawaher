@@ -1,0 +1,52 @@
+# JAWAHER MIZAN: link this blueprint to the repository on GitHub.
+# Note: Supabase is not provisioned by this file. Supply DATABASE_URL in Render secrets.
+services:
+  - type: keyvalue
+    name: jawaher-redis
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+
+  - type: pserv
+    name: jawaher-api
+    runtime: docker
+    dockerfilePath: ./api/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: '4000'
+      - key: COOKIE_SECURE
+        value: 'true'
+      - key: PG_POOL_SIZE
+        value: '5'
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: jawaher-redis
+          property: connectionString
+      - key: ZATCA_SIM_ENABLED
+        value: 'false'
+
+  - type: web
+    name: jawaher-web
+    runtime: docker
+    dockerfilePath: ./web/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: '3000'
+      - key: HOSTNAME
+        value: '0.0.0.0'
+      - key: API_INTERNAL_HOST
+        fromService:
+          type: pserv
+          name: jawaher-api
+          property: host
+      - key: API_INTERNAL_PORT
+        value: '4000'
+    healthCheckPath: /

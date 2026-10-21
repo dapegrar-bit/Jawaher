@@ -1,0 +1,74 @@
+name: jawaher-mizan
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jawaher
+      POSTGRES_DB: jawaher_mizan
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - jawaher_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jawaher -d jawaher_mizan"]
+      interval: 5s
+      timeout: 4s
+      retries: 15
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - jawaher_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 15
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      NODE_ENV: development
+      DATABASE_URL: postgresql://jawaher:${POSTGRES_PASSWORD}@db:5432/jawaher_mizan
+      WEB_ORIGIN: http://localhost:3000
+      REDIS_URL: redis://redis:6379
+      PG_POOL_SIZE: 5
+      COOKIE_SECURE: 'false'
+      ZATCA_SIM_ENABLED: 'false'
+    ports:
+      - '127.0.0.1:4000:4000'
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    restart: unless-stopped
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      API_INTERNAL_URL: http://api:4000
+    ports:
+      - '127.0.0.1:3000:3000'
+    depends_on:
+      - api
+  migrate:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    command: ['node','scripts/migrate.mjs']
+    profiles: ['tools']
+    environment:
+      DATABASE_URL: postgresql://jawaher:${POSTGRES_PASSWORD}@db:5432/jawaher_mizan
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  jawaher_pgdata:
+  jawaher_redis:

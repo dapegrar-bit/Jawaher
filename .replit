@@ -1,0 +1,5 @@
+entrypoint = "README.md"
+run = "bash scripts/start-replit.sh"
+[[ports]]
+localPort = 3000
+externalPort = 80
