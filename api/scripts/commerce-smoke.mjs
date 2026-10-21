@@ -1,0 +1,43 @@
+// Run only after Docker Compose starts. Creates isolated demo financial transactions.
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+const host=process.env.JAWAHER_API_URL||'http://localhost:4000';
+let cookie='';
+async function call(method,path,body,expected=200){
+ const res=await fetch(host+path,{method,headers:{'Content-Type':'application/json','X-Jawaher-Client':'web',...(cookie?{Cookie:cookie}:{})},...(body?{body:JSON.stringify(body)}:{})});
+ if(res.headers.get('set-cookie'))cookie=res.headers.get('set-cookie').split(';')[0];
+ const data=await res.json();
+ assert.equal(res.status,expected,`${method} ${path}: ${res.status} ${JSON.stringify(data)}`);
+ return data;
+}
+const email=`commerce.${randomUUID().slice(0,12)}@jawaher.example`;
+const reg=await call('POST','/auth/register',{email,password:'ExampleStrongPass999!',companyName:'جواهر تجارة اختبارية'},201);
+const c=`/companies/${reg.company.id}`;
+const customer=await call('POST',c+'/contacts',{name:'عميل التجربة',kind:'customer'},201);
+const supplier=await call('POST',c+'/contacts',{name:'مورد التجربة',kind:'supplier'},201);
+const item=await call('POST',c+'/catalog',{name:'استشارة تجريبية',kind:'service',price:'1000.00'},201);
+assert.equal(item.price,'1000.00');
+const date=new Date().toISOString().slice(0,10);
+const sample={contactId:customer.id,issueDate:date,dueDate:date,idempotencyKey:randomUUID(),lines:[{description:'خدمة تجريبية',quantity:1,unitPrice:'1000.00',taxRate:15}]};
+const sale=await call('POST',c+'/documents/sale',sample,201);
+assert.equal(sale.status,'draft');assert.equal(sale.grand_total,'1150.00');
+await call('POST',c+'/documents/sale',sample,409);
+const issued=await call('POST',c+'/document/'+sale.id+'/issue',{},201);
+assert.equal(issued.status,'issued');
+await call('POST',c+'/document/'+sale.id+'/issue',{},409);
+let fin=await call('GET',c+'/reports/financial');
+assert.equal(fin.income,'1000.00');assert.equal(fin.receivables,'1150.00');
+const firstPayment=await call('POST',c+'/document/'+sale.id+'/payments',{paidOn:date,amount:'150.00',idempotencyKey:randomUUID()},201);
+assert.equal(firstPayment.status,'partial');
+const secondPayment=await call('POST',c+'/document/'+sale.id+'/payments',{paidOn:date,amount:'1000.00',idempotencyKey:randomUUID()},201);
+assert.equal(secondPayment.status,'paid');
+await call('POST',c+'/document/'+sale.id+'/payments',{paidOn:date,amount:'0.01',idempotencyKey:randomUUID()},400);
+const purchase=await call('POST',c+'/documents/purchase',{contactId:supplier.id,issueDate:date,dueDate:date,idempotencyKey:randomUUID(),lines:[{description:'مصاريف',quantity:1,unitPrice:'200.00',taxRate:15}]},201);
+await call('POST',c+'/document/'+purchase.id+'/issue',{},201);
+fin=await call('GET',c+'/reports/financial');assert.equal(fin.expenses,'200.00');assert.equal(fin.netProfit,'800.00');
+assert.equal(fin.payables,'230.00');assert.equal(fin.receivables,'0.00');assert.equal(fin.equationBalanced,true);
+const balance=await call('GET',c+'/reports/trial-balance');assert.equal(balance.totals.credit,balance.totals.debit);
+const stage=await call('POST',c+'/integrations/staging',{provider:'csv',externalId:randomUUID(),recordType:'invoice',payload:{total:'100.00'}},201);
+assert.equal(stage.status,'staged');
+const status=await call('GET',c+'/compliance/zatca');assert.equal(status.productionReady,false);
+console.log('PASS: contacts, catalog, sale draft and issue, no duplicates, payments, purchase, financial equation, staging, compliance guard');

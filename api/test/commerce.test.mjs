@@ -1,0 +1,12 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {calculateLine,paymentValid} from '../src/money.ts';
+test('15% VAT on SAR 1000 item',()=>assert.deepEqual(calculateLine(1,'1000.00',15),{net:'1000.00',tax:'150.00',gross:'1150.00'}));
+test('per-line rounding from one halala',()=>assert.deepEqual(calculateLine(1,'0.01',15),{net:'0.01',tax:'0.00',gross:'0.01'}));
+test('fifty halalas VAT rounding',()=>assert.deepEqual(calculateLine(1,'0.10',15),{net:'0.10',tax:'0.02',gross:'0.12'}));
+test('zero VAT demo rate',()=>assert.equal(calculateLine(2,'12.50',0).gross,'25.00'));
+test('invalid quantity rejected',()=>assert.throws(()=>calculateLine(0,'12.00',15)));
+test('unsupported tax rejected',()=>assert.throws(()=>calculateLine(1,'12.00',5)));
+test('payment within outstanding',()=>assert.equal(paymentValid('100.00','20.00','80.00'),true));
+test('prevent payment over outstanding',()=>assert.equal(paymentValid('100.00','20.00','80.01'),false));
+test('zero payment rejected',()=>assert.equal(paymentValid('100.00','0.00','0.00'),false));

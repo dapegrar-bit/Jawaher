@@ -1,0 +1,29 @@
+name: Jawaher Mizan CI
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install API dependencies
+        working-directory: api
+        run: npm install --no-audit --no-fund
+      - name: API tests
+        working-directory: api
+        run: npm run test:core && npm run test:deployment
+      - name: API TypeScript build
+        working-directory: api
+        run: npm run build
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm install --no-audit --no-fund
+      - name: Build frontend
+        working-directory: web
+        run: npm run build

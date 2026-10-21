@@ -1,0 +1,15 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {parseHalalas,formatHalalas,validateBalancedLines} from '../src/money.ts';
+const line = (accountId,debit,credit) => ({accountId,debit,credit});
+test('exact 0.01 SAR arithmetic',()=> assert.equal(parseHalalas('12.03'),1203n));
+test('round-trip formatted SAR money',()=> assert.equal(formatHalalas(parseHalalas('1000.4')),'1000.40'));
+test('reject negative amounts',()=> assert.throws(()=>parseHalalas('-1.00')));
+test('reject JS binary float inputs',()=> assert.throws(()=>parseHalalas(1.23)));
+test('reject >2 fractional digits',()=> assert.throws(()=>parseHalalas('1.001')));
+test('balanced journal passes',()=> assert.equal(validateBalancedLines([line('a','1150.00','0'),line('b','0','1000'),line('c','0','150.00')]).debit,'1150.00'));
+test('unbalanced journal fails',()=> assert.throws(()=>validateBalancedLines([line('a','100','0'),line('b','0','99')])));
+test('both sides on one line fails',()=> assert.throws(()=>validateBalancedLines([line('a','100','1'),line('b','0','99')])));
+test('empty journal fails',()=> assert.throws(()=>validateBalancedLines([])));
+test('zero line fails',()=> assert.throws(()=>validateBalancedLines([line('a','0','0'),line('b','0','0')])));
+test('line with decimal max and precise sum',()=>assert.equal(validateBalancedLines([line('a','0.01','0'),line('b','0','0.01')]).credit,'0.01'));
