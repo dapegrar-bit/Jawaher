@@ -23,6 +23,8 @@ services:
         value: '5'
       - key: DATABASE_URL
         sync: false
+      - key: WEB_ORIGIN
+        sync: false
       - key: REDIS_URL
         fromService:
           type: keyvalue
@@ -45,7 +47,5 @@ services:
       - key: HOSTNAME
         value: '0.0.0.0'
       - key: API_INTERNAL_URL
-        sync: false
-      - key: WEB_ORIGIN
         sync: false
     healthCheckPath: /
